@@ -1,0 +1,1 @@
+Con base en la clase del día 10 de marzo, utilizar del mismo dataset y sacar el promedio mensual por delito para las alcaldías Cuahutemoc e Iztapalapa comparando 2 o más años.
