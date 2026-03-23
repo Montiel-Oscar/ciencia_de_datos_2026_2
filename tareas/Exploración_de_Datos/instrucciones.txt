@@ -1,0 +1,10 @@
+Con base en la información compartida en clase, realizar los siguientes pasos al analizar las variables restantes:
+language
+country
+actors (separarlo)texto en cursiva
+imdb_score
+movie_facebook_likes
+Además, si se observan:
+Datos que son outliers deberán limpiarlos!
+Columnas con poca utilidad podrán borrarlas!
+Entregable: un PDF con las acciones que hicieron en cada columna y su justificación.
