@@ -1,0 +1,11 @@
+¿Necesitas más datasets?
+Con lo que tienes es suficiente para el proyecto. Los 3 datasets se complementan perfectamente: nacionalidad te da el quién, residencia te da dónde atacar con marketing, y aerolíneas te da el cómo llegan. Si quisieras enriquecerlo opcíonalmente, podrías cruzar con datos de ocupación hotelera de DATATUR (también gobierno MX) o tarifas de vuelos, pero no es necesario para la entrega.
+¿Qué hacer ahora y en qué orden?
+La secuencia correcta es esta:
+Primero, exploración antes de limpiar. Nunca limpies a ciegas. Necesitas entender qué tan sucio está cada dataset antes de decidir qué hacer. Carga cada uno en Python/pandas y corre .info(), .describe(), .isnull().sum() y .value_counts() en las columnas clave. Eso te dirá dónde están los problemas reales.
+Segundo, limpia en este orden: empieza con el dataset de Llegada por Residencia (Base 2). Es el más importante estratégicamente porque es el que le habla directamente al cliente hotelero ("¿dónde vive el turista que me visita?"), tiene la misma estructura que la Base 1 así que lo que aprendas aplica directo, y es el que más vas a usar para el modelo predictivo.
+Tercero, haz la Base 1 (Nacionalidad), que es casi idéntica en estructura. Cuarto, la Base 3 (Aerolíneas) que tiene columnas duplicadas visibles en las imágenes (Tipo, Servicio y Aerolínea aparecen dos veces) y ese es tu primer problema de limpieza conocido.
+Tercero, unifica y cruza los tres datasets por Año + Mes + Aeropuerto para construir una tabla maestra.
+Cuarto, define tu variable objetivo antes de modelar: ¿qué exactamente quieres predecir? Te sugiero que sea el Valor (número de turistas) por aeropuerto + país de residencia + mes. Eso es lo que tiene valor comercial para un hotel.
+Una advertencia importante para el pitch: noten que tienen datos desde 2012, pero deben decidir si incluyen 2020-2021 o no, porque la pandemia distorsiona brutalmente cualquier patrón histórico. Recomiendo que en la limpieza marquen esos años como outliers o los excluyan del entrenamiento del modelo, y lo expliquen en la presentación. Eso demuestra criterio profesional frente al jurado.
+¿Quieres que te arme el código de exploración inicial en Python para los 3 datasets, o prefieres primero definir la pregunta exacta de predicción?
