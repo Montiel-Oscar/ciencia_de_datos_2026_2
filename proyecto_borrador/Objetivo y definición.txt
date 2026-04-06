@@ -1,0 +1,49 @@
+1. Definición del Objetivo Refinado
+Para que suene profesional y cumpla con el estándar de un proyecto de Ciencia de Datos, te sugiero redactarlo bajo la estructura SMART (Específico, Medible, Alcanzable, Relevante y Limitado en el tiempo):
+
+Objetivo General: Desarrollar un modelo predictivo basado en algoritmos de Machine Learning que pronostique el volumen y perfil demográfico (nacionalidad y región de residencia) de turistas extranjeros que arriban a aeropuertos específicos en México. El fin comercial es proveer una herramienta B2B (Business-to-Business) a cadenas hoteleras y secretarías de turismo regionales para optimizar la segmentación de sus campañas de marketing y maximizar su retorno de inversión publicitaria.
+
+2. Descripción del Proyecto (Para tu documento)
+Puedes usar este texto para la sección "2.1 Solution Overview Description" de tu tabla de contenido:
+
+Descripción de la Solución:
+El presente proyecto propone el desarrollo de un motor de inteligencia turística que capitaliza los datos abiertos proporcionados por el Gobierno de México. La herramienta analiza el flujo histórico de pasajeros internacionales, cruzando variables como la nacionalidad, el país de residencia, la aerolínea y el aeropuerto de destino.
+
+El problema de negocio que resuelve es la ineficiencia en el gasto publicitario de la industria hotelera y de servicios turísticos. En lugar de ejecutar campañas masivas o basadas en la intuición, los clientes podrán consultar el modelo para predecir qué nichos demográficos tendrán mayor afluencia en su región durante temporadas específicas. Esto permite la creación de ofertas hiper-personalizadas y la optimización de precios según la demanda predictiva, generando una ventaja competitiva directa y un aumento en la conversión de ventas.
+
+3. Descripción de tus Bases de Datos (Diccionario de Datos)
+
+Base 1: Llegada por Nacionalidad (Imagen 1)
+Esta tabla se enfoca en el pasaporte o nacionalidad legal del pasajero.
+
+Año / Fecha / MesNum / Mes: Variables temporales que te permitirán hacer análisis de series de tiempo y detectar estacionalidades (ej. el "Spring Break" o el invierno).
+
+Aeropuerto: El punto de entrada en México (ej. Acapulco, Gro.). Es tu variable geográfica clave.
+
+Origen: Indica la naturaleza del registro (en este caso, "Nacionalidad").
+
+País / Región: El país de origen del turista (ej. Alemania, Australia) y su continente (Europa, Oceanía).
+
+Sexo: Género del pasajero, útil para perfilar el tipo de marketing.
+
+Valor: La cantidad absoluta de pasajeros que cumplen con las características de esa fila. Es tu variable objetivo a predecir.
+
+Base 2: Llegada por Residencia (Imagen 2)
+Es estructuralmente idéntica a la primera, pero conceptualmente distinta.
+
+Origen ("Residencia"): Aquí importa dónde vive la persona, no su pasaporte. Por ejemplo, un turista con pasaporte español que reside en Canadá entrará como "Canadá" aquí. Esto es vital para el marketing, porque si quieres venderles algo, debes lanzar tus anuncios en Canadá, no en España. Cuenta con las mismas columnas de tiempo, geografía, sexo y "Valor" (cantidad).
+
+Base 3: Llegada por Aerolíneas Extranjeras (Imagen 3)
+Esta tabla cruza la logística de los vuelos internacionales.
+
+Año / Mes / fecha / Id_mes: Identificadores temporales del vuelo.
+
+Tipo (2 columnas): Indica de forma corta (INT) y extendida (Internacional) la naturaleza del vuelo.
+
+Servicio (2 columnas): Clave para saber si es un vuelo regular o un "Fletamiento" (Charter). Los vuelos Charter, como "FLET", suelen indicar paquetes turísticos todo incluido contratados por agencias extranjeras.
+
+Reg / Aerolínea (Región): Indica de dónde es la aerolínea (ej. CAN para Canadiense, EUR para Europea).
+
+Aerolinea: El nombre comercial de la empresa (Air Transat, Copa Airlines, etc.).
+
+Pasajeros: El volumen total de personas transportadas.
