@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle Sphere - Tema Claro & Aviones</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f4f4f9;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #pw-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            cursor: none;
+        }
+
+        #pw-ui {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        #pw-transcript {
+            margin-bottom: 12px;
+            color: rgba(0, 0, 0, 0.85);
+            font-family: inherit;
+            font-size: 18px;
+            font-weight: 500;
+            text-align: center;
+            max-width: 400px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+            min-height: 1.5em;
+            line-height: 1.4;
+        }
+
+        #pw-tip {
+            color: rgba(0, 0, 0, 0.4);
+            font-size: 11px;
+            font-family: system-ui, sans-serif;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+
+        /* Input 100% invisible para capturar el teclado sin interfaz visual */
+        #hidden-input {
+            position: absolute;
+            top: -100px;
+            left: -100px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            border: none;
+            padding: 0;
+            margin: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="pw-canvas"></canvas>
+
+    <div id="pw-ui">
+        <div id="pw-transcript"></div>
+        <div id="pw-tip">escribe en tu teclado &bull; presiona Enter &bull; doble clic para reiniciar</div>
+    </div>
+
+    <input id="hidden-input" type="text" autocomplete="off" />
+
+    <script>
+        (function () {
+            const canvas = document.getElementById('pw-canvas');
+            const ctx = canvas.getContext('2d');
+            const tipEl = document.getElementById('pw-tip');
+            const transcriptEl = document.getElementById('pw-transcript');
+            const hiddenInput = document.getElementById('hidden-input');
+
+            let W, H, CX, CY, dpr, baseDim;
+
+            function resize() {
+                dpr = window.devicePixelRatio || 1;
+                W = window.innerWidth;
+                H = window.innerHeight;
+                CX = W / 2;
+                CY = H / 2;
+                baseDim = Math.min(W, H);
+                canvas.width = W * dpr;
+                canvas.height = H * dpr;
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.scale(dpr, dpr);
+            }
+
+            const N = 10000; 
+            const px = new Float32Array(N), py = new Float32Array(N), pz = new Float32Array(N);  
+            const vx = new Float32Array(N), vy = new Float32Array(N), vz = new Float32Array(N);  
+            const tx = new Float32Array(N), ty = new Float32Array(N), tz = new Float32Array(N);  
+            const ox = new Float32Array(N), oy = new Float32Array(N), oz = new Float32Array(N);  
+            const hue = new Float32Array(N), phase = new Float32Array(N);  
+
+            let appState = 1; // 0 = Esfera, 1 = Texto formándose, 2 = Texto activo
+            let mouseX = -9999, mouseY = -9999, t = 0;
+            let introTimeout;
+
+            const REPEL_RADIUS = 100, REPEL_FORCE = 8;    
+            const PHI = Math.PI * (1 + Math.sqrt(5)); 
+            let rotY = 0;
+            const FOV = 550, CAMERA_Z = 600;
+
+            /* ─── Configuración de Aviones ──────────────────────────────────── */
+            const numPlanes = 5;
+            const planes = [];
+            for(let i=0; i < numPlanes; i++) {
+                planes.push({
+                    angle1: Math.random() * Math.PI * 2, // Posición orbital X/Z
+                    angle2: Math.random() * Math.PI * 2, // Posición orbital Y
+                    speed1: 0.003 + Math.random() * 0.004, // Velocidad de órbita
+                    speed2: 0.002 + Math.random() * 0.003,
+                    offsetY: (Math.random() - 0.5) * 120 // Altura variable
+                });
+            }
+
+            function initSphereTargets() {
+                const R = baseDim > 1200 ? baseDim * 0.28 : baseDim * 0.42; 
+                for (let i = 0; i < N; i++) {
+                    const polar = Math.acos(1 - 2 * (i + 0.5) / N);
+                    const azim = PHI * i;
+                    ox[i] = Math.sin(polar) * Math.cos(azim) * R;
+                    oy[i] = Math.sin(polar) * Math.sin(azim) * R;
+                    oz[i] = Math.cos(polar) * R;
+                    tx[i] = ox[i];
+                    ty[i] = oy[i];
+                    tz[i] = oz[i];
+                }
+            }
+
+            function sampleTextPositions(phrase) {
+                const cW = Math.floor(W), cH = Math.floor(H);
+                const off = document.createElement('canvas');
+                off.width = cW; off.height = cH;
+                const c2 = off.getContext('2d');
+
+                const words = phrase.split(' ');
+                const lines = [];
+                let currentLine = '';
+                const maxChars = phrase.length > 25 ? 12 : 20;
+
+                words.forEach(word => {
+                    if ((currentLine + word).length > maxChars) {
+                        lines.push(currentLine.trim());
+                        currentLine = word + ' ';
+                    } else {
+                        currentLine += word + ' ';
+                    }
+                });
+                lines.push(currentLine.trim());
+
+                let fs = Math.min(cW * 0.72 / (maxChars * 0.5), cH * 0.50 / lines.length, 180);
+                if (phrase.length > 30) fs *= 0.8;
+
+                c2.fillStyle = '#000'; 
+                c2.font = `900 ${fs}px Arial Black, Arial, sans-serif`;
+                c2.textAlign = 'center'; c2.textBaseline = 'middle';
+
+                const lineHeight = fs * 1.1;
+                const startY = (cH / 2) - ((lines.length - 1) * lineHeight / 2);
+
+                lines.forEach((line, i) => { c2.fillText(line, cW / 2, startY + (i * lineHeight)); });
+
+                const data = c2.getImageData(0, 0, cW, cH).data;
+                const pts = [];
+                const step = phrase.length > 30 ? 2 : 1; 
+
+                for (let y = 0; y < cH; y += step) {
+                    for (let x = 0; x < cW; x += step) {
+                        if (data[(y * cW + x) * 4 + 3] > 120) {
+                            pts.push(x - cW / 2 + (Math.random() - 0.5) * 0.8, y - cH / 2 + (Math.random() - 0.5) * 0.8);
+                        }
+                    }
+                }
+
+                for (let i = pts.length / 2 - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    const ia = i * 2, ja = j * 2;
+                    let tmp = pts[ia]; pts[ia] = pts[ja]; pts[ja] = tmp;
+                    tmp = pts[ia + 1]; pts[ia + 1] = pts[ja + 1]; pts[ja + 1] = tmp;
+                }
+                return pts;
+            }
+
+            function initParticlesAtText(phrase) {
+                const pts = sampleTextPositions(phrase);
+                const pCount = pts.length / 2;
+                
+                for (let i = 0; i < N; i++) {
+                    const idx = (i % pCount) * 2;
+                    px[i] = pts[idx]; py[i] = pts[idx + 1]; pz[i] = 0;
+                    tx[i] = px[i]; ty[i] = py[i]; tz[i] = pz[i];
+                    vx[i] = vy[i] = vz[i] = 0;
+                    hue[i] = (i / N) * 320 + 170;
+                    phase[i] = Math.random() * Math.PI * 2;
+                }
+            }
+
+            let formTimeout;
+            function formWord(phrase) {
+                if (!phrase.trim()) return;
+                
+                appState = 1;
+                tipEl.style.opacity = '0';
+
+                const pts = sampleTextPositions(phrase);
+                const pCount = pts.length / 2;
+
+                for (let i = 0; i < N; i++) {
+                    const idx = (i % pCount) * 2;
+                    tx[i] = pts[idx]; ty[i] = pts[idx + 1]; tz[i] = 0; 
+                }
+
+                rotY = 0; t = 0; 
+                clearTimeout(formTimeout);
+                formTimeout = setTimeout(() => {
+                    appState = 2; 
+                    tipEl.style.opacity = '1';
+                }, 4000); 
+            }
+
+            function update() {
+                t += 0.005; 
+                if (appState === 0) rotY += 0.002; 
+                
+                const jitter = appState === 0 ? 1.8 : 0; 
+
+                for (let i = 0; i < N; i++) {
+                    let curTx = tx[i], curTy = ty[i], curTz = tz[i];
+                    const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+
+                    let targetX = curTx * cosY - curTz * sinY;
+                    let targetY = curTy;
+                    let targetZ = curTx * sinY + curTz * cosY;
+
+                    if (appState === 0) {
+                        targetX += Math.sin(t * 8 + phase[i]) * jitter;
+                        targetY += Math.cos(t * 9 + phase[i]) * jitter;
+                        targetZ += Math.sin(t * 7 + phase[i] * 2) * jitter;
+                    }
+
+                    const sp = appState === 0 ? 0.02 : 0.006; 
+                    vx[i] += (targetX - px[i]) * sp;
+                    vy[i] += (targetY - py[i]) * sp;
+                    vz[i] += (targetZ - pz[i]) * sp;
+
+                    if (appState >= 1 && mouseX > 0) {
+                        const scale = FOV / (FOV + pz[i] + CAMERA_Z);
+                        const sx = px[i] * scale + CX;
+                        const sy = py[i] * scale + CY;
+
+                        const rdx = sx - mouseX, rdy = sy - mouseY;
+                        const d2 = rdx * rdx + rdy * rdy;
+                        if (d2 < REPEL_RADIUS * REPEL_RADIUS && d2 > 1) {
+                            const d = Math.sqrt(d2);
+                            const mag = REPEL_FORCE * (1 - d / REPEL_RADIUS) * 5;
+                            vx[i] += (rdx / d) * mag;
+                            vy[i] += (rdy / d) * mag;
+                        }
+                    }
+
+                    vx[i] *= 0.82; vy[i] *= 0.82; vz[i] *= 0.82;
+                    px[i] += vx[i]; py[i] += vy[i]; pz[i] += vz[i];
+                }
+            }
+
+            function draw() {
+                ctx.fillStyle = 'rgba(244, 244, 249, 0.22)';
+                ctx.fillRect(0, 0, W, H);
+
+                // 1. Dibujar Partículas
+                for (let i = 0; i < N; i++) {
+                    const zPos = pz[i] + CAMERA_Z;
+                    if (zPos < 10) continue;
+
+                    const scale = FOV / zPos;
+                    const sx = px[i] * scale + CX;
+                    const sy = py[i] * scale + CY;
+
+                    const spd = Math.sqrt(vx[i]*vx[i] + vy[i]*vy[i] + vz[i]*vz[i]);
+                    
+                    let a = Math.min(1, (0.3 + spd * 0.1) * (scale * 0.9));
+                    let size = (0.7 + spd * 0.12) * scale; 
+                    let h, s, l;
+
+                    if (appState >= 1) {
+                        h = 220; s = 90; l = 25; 
+                        a = Math.min(1, a * 2); 
+                    } else {
+                        h = (hue[i] + t * 25) % 360; s = 80; l = 35;
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, size, 0, 6.2832);
+                    ctx.fillStyle = `hsla(${h}, ${s}%, ${l}%, ${a})`;
+                    ctx.fill();
+                }
+
+                // 2. Dibujar Aviones Orbitando (Solo en modo esfera)
+                if (appState === 0) {
+                    const planeRadius = (baseDim > 1200 ? baseDim * 0.28 : baseDim * 0.42) + 70;
+                    
+                    planes.forEach(p => {
+                        p.angle1 += p.speed1;
+                        p.angle2 += p.speed2;
+
+                        // Coordenadas 3D del avión
+                        let x = planeRadius * Math.sin(p.angle1) * Math.cos(p.angle2);
+                        let y = planeRadius * Math.sin(p.angle2) + p.offsetY;
+                        let z = planeRadius * Math.cos(p.angle1) * Math.cos(p.angle2);
+
+                        const zPos = z + CAMERA_Z;
+                        if (zPos > 10) {
+                            const scale = FOV / zPos;
+                            const sx = x * scale + CX;
+                            const sy = y * scale + CY;
+
+                            // Posición futura para calcular hacia dónde apunta la nariz
+                            let nx = planeRadius * Math.sin(p.angle1 + p.speed1) * Math.cos(p.angle2 + p.speed2);
+                            let ny = planeRadius * Math.sin(p.angle2 + p.speed2) + p.offsetY;
+                            let nz = planeRadius * Math.cos(p.angle1 + p.speed1) * Math.cos(p.angle2 + p.speed2);
+
+                            const nsx = nx * scale + CX;
+                            const nsy = ny * scale + CY;
+                            const angle = Math.atan2(nsy - sy, nsx - sx); 
+
+                            ctx.save();
+                            ctx.translate(sx, sy);
+                            ctx.rotate(angle);
+                            
+                            let alpha = Math.min(1, (zPos > 800 ? 0.3 : 0.8) * scale);
+                            
+                            // Silueta de Jet / Avión de papel
+                            ctx.beginPath();
+                            ctx.moveTo(14 * scale, 0);             // Nariz
+                            ctx.lineTo(-8 * scale, 8 * scale);     // Ala inferior
+                            ctx.lineTo(-4 * scale, 0);             // Cola interior
+                            ctx.lineTo(-8 * scale, -8 * scale);    // Ala superior
+                            ctx.closePath();
+                            
+                            ctx.fillStyle = `rgba(100, 130, 180, ${alpha})`; 
+                            ctx.fill();
+                            ctx.restore();
+                        }
+                    });
+                }
+
+                // 3. Efecto repelente del cursor
+                if (appState >= 1 && mouseX > 0) {
+                    const r = REPEL_RADIUS;
+                    const grd = ctx.createRadialGradient(mouseX, mouseY, 0, mouseX, mouseY, r);
+                    grd.addColorStop(0, 'rgba(0,0,0,0.04)');
+                    grd.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.beginPath();
+                    ctx.arc(mouseX, mouseY, r, 0, 6.2832);
+                    ctx.fillStyle = grd;
+                    ctx.fill();
+                }
+            }
+
+            function loop() {
+                update();
+                draw();
+                requestAnimationFrame(loop);
+            }
+
+            /* ─── Eventos Invisibles ───────────────────────────────────────── */
+            
+            // Mantener enfocado el input oculto al hacer clic o teclear
+            window.addEventListener('keydown', () => hiddenInput.focus());
+            window.addEventListener('click', () => hiddenInput.focus());
+
+            hiddenInput.addEventListener('input', () => {
+                // Si escriben algo durante la intro, cancelar la explosión
+                clearTimeout(introTimeout);
+
+                if (appState >= 1) {
+                    appState = 0;
+                    initSphereTargets();
+                    tipEl.style.opacity = '1';
+                }
+                transcriptEl.textContent = hiddenInput.value;
+            });
+
+            hiddenInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const s = hiddenInput.value.trim();
+                    if (s) { 
+                        formWord(s); 
+                        hiddenInput.value = ''; // Limpiar para la próxima palabra
+                    }
+                }
+            });
+
+            canvas.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+            canvas.addEventListener('mouseleave', () => { mouseX = -9999; mouseY = -9999; });
+            
+            canvas.addEventListener('dblclick', () => {
+                if (appState !== 0) {
+                    appState = 0;
+                    initSphereTargets();
+                    hiddenInput.value = '';
+                    transcriptEl.textContent = '';
+                    tipEl.style.opacity = '1';
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                ctx.resetTransform();
+                resize();
+                if (appState === 0) initSphereTargets();
+            });
+
+            /* ─── Secuencia de Arranque ─────────────────────────────────────── */
+            resize();
+            
+            const introText = "Data Company";
+            transcriptEl.textContent = introText;
+            initParticlesAtText(introText); // 1. Nace formado
+            
+            introTimeout = setTimeout(() => {
+                // 2. Explota
+                for (let i = 0; i < N; i++) {
+                    vx[i] = (Math.random() - 0.5) * 120;
+                    vy[i] = (Math.random() - 0.5) * 120;
+                    vz[i] = (Math.random() - 0.5) * 120;
+                }
+                
+                appState = 0;
+                initSphereTargets();
+                transcriptEl.textContent = ''; 
+                hiddenInput.value = ''; // Asegurar que inicie limpio
+                tipEl.style.opacity = '1'; 
+                hiddenInput.focus();
+
+            }, 3000);
+
+            loop();
+
+        })();
+    </script>
+</body>
+
+</html>
